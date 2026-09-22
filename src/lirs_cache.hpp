@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cmath>
 #include <vector>
+#include <stdexcept>
 
 namespace caches {
 
@@ -24,9 +25,6 @@ private:
     using q_iter_t     = typename std::list<KeyT>::iterator;
     using cache_iter_t = typename std::vector<page_t>::iterator;
 
-    static constexpr double s_cap_multr_default = 2;   // s has s_cap_multr_default * cap_ capacity
-    static constexpr double q_cap_multr_default = 0.1; // q has s_cap_multr_default * s_cap_ capacity
-
     enum state_t {
         LIR   = 1, // low inter-reference recency
         HIR_R = 2, // hight, resident
@@ -39,12 +37,12 @@ private:
         bool in_s = false;
         bool in_q = false;
         // valid only when corresponding bool == true
-        s_iter_t s_iter;
-        q_iter_t q_iter;
+        s_iter_t s_iter {};
+        q_iter_t q_iter {};
     };
     // members
     size_t cap_;
-    size_t s_cap_; // s can be bigger than the real cache //TODO: use s_cap_ as limit for S -- now S could has any size 
+    size_t s_cap_; // maximum number of LIR and HIR entries in S
     size_t q_cap_;
 
     std::unordered_map<KeyT, meta_data_t> hash_;
@@ -60,9 +58,10 @@ private:
     void   store_to_s    (const KeyT& key);
     void   store_to_q    (const KeyT& key);
     size_t evict_from_q_if_need();
+    void   evict_from_s_if_need();
 
 public:
-    explicit lirs_cache(size_t cap, size_t s_cap);
+    explicit lirs_cache(size_t cap, size_t q_cap, size_t s_cap);
     ~lirs_cache() = default;
     lirs_cache(const lirs_cache&) = delete;
     lirs_cache& operator=(const lirs_cache&) = delete;
@@ -71,10 +70,25 @@ public:
     size_t hits()     const {return n_hits_;}
     size_t misses()   const {return n_misses_;}
     size_t size()     const {return cache_.size();}
-    bool   is_full()  const {return size() == cap_;}
+    bool   is_full()  const {return size() == capacity();}
 
     template <typename F> std::pair<T, bool> lookup_update(const KeyT& key, F slow_get_page);
 };
+
+template <typename T, typename KeyT>
+lirs_cache<T, KeyT>::lirs_cache(size_t cap, size_t q_cap, size_t s_cap)
+    : cap_   {cap},
+      s_cap_ {s_cap},
+      q_cap_ {q_cap}
+{
+    if (cap_ == 0 || q_cap_ == 0 || q_cap_ >= cap) {
+        throw std::invalid_argument("Incorrect capacity of cache or Q stack");
+    }
+    if (s_cap_ == 0 || s_cap_ <= cap_) {
+        throw std::invalid_argument("S stack capacity must be more than cache capacity");
+    }
+    cache_.reserve(cap);
+}
 
 template <typename T, typename KeyT>
 template <typename F>
@@ -97,6 +111,7 @@ std::pair<T, bool> lirs_cache<T, KeyT>::lookup_update(const KeyT& key, F slow_ge
             store_to_q(key);
         }
         store_to_s(key);
+        evict_from_s_if_need();
         store_to_cache(new_page, free_idx);
         s_pruning();
         ++n_misses_;
@@ -124,6 +139,7 @@ std::pair<T, bool> lirs_cache<T, KeyT>::lookup_update(const KeyT& key, F slow_ge
             store_to_q(old_lir.key);
         } else {
             store_to_s(key);
+            evict_from_s_if_need();
             q_.splice(q_.begin(), q_, meta_data.q_iter);
         }
         s_pruning();
@@ -179,26 +195,6 @@ void lirs_cache<T, KeyT>::store_to_cache(const page_t& page, size_t idx) {
     hash_.find(page.key)->second.idx = idx;
 }
 
-// return first free idx in cache
-template <typename T, typename KeyT>
-size_t lirs_cache<T, KeyT>::evict_from_q_if_need() {
-    if (!is_full()) {
-        return cache_.size();
-    }
-    auto  it   = hash_.find(q_.back());
-    auto& meta = it->second;
-    const auto free_idx = meta.idx;
-
-    q_.pop_back();
-    if (!meta.in_s) {
-        hash_.erase(it);
-    } else {
-        meta.in_q  = false;
-        meta.state = HIR_N;
-    }
-    return free_idx;
-}
-
 template <typename T, typename KeyT>
 void lirs_cache<T, KeyT>::store_to_s(const KeyT& key) {
     auto& meta = hash_.find(key)->second;
@@ -221,18 +217,48 @@ void lirs_cache<T, KeyT>::store_to_q(const KeyT& key) {
 }
 
 template <typename T, typename KeyT>
-lirs_cache<T, KeyT>::lirs_cache(size_t cap, size_t q_cap)
-    : cap_   {cap},
-      q_cap_ {q_cap},
-      s_cap_ {1} //TODO: s_cap_ as limit for real S size
-{
-    if (cap_ == 0 || q_cap_ == 0 || q_cap_ >= cap) {
-        throw std::invalid_argument("Incorrect capacity of cache or Q stack");
+void lirs_cache<T, KeyT>::evict_from_s_if_need() {
+    if (s_.size() <= s_cap_) {
+        return;
     }
-    if (s_cap == 0) {
-        throw std::invalid_argument("S stack capacity can not be 0");
+    auto s_it = std::prev(s_.end());
+
+    while (true) {
+        auto& meta = hash_.at(*s_it);
+        if (meta.state != LIR) {
+            break;
+        }
+        assert(s_it != s_.begin());
+        --s_it;
     }
-    cache_.reserve(cap);
+    auto hash_it = hash_.find(*s_it);
+    auto& meta = hash_it->second;
+    s_.erase(s_it);
+    meta.in_s = false;
+
+    if (meta.state == HIR_N) {
+        hash_.erase(hash_it);
+    }
+}
+
+// return first free idx in cache
+template <typename T, typename KeyT>
+size_t lirs_cache<T, KeyT>::evict_from_q_if_need() {
+    if (!is_full()) {
+        return cache_.size();
+    }
+    auto  it   = hash_.find(q_.back());
+    auto& meta = it->second;
+    const auto free_idx = meta.idx;
+
+    q_.pop_back();
+    if (!meta.in_s) {
+        hash_.erase(it);
+    } else {
+        meta.in_q  = false;
+        meta.state = HIR_N;
+    }
+    return free_idx;
 }
 
 }
