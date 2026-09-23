@@ -12,10 +12,12 @@
 #include <stdexcept>
 #include <limits>
 
+#include "cache.hpp"
+
 namespace caches {
 
 template <typename T, typename KeyT>
-class qq_cache {
+class qq_cache : public cache<T, KeyT> {
 private:
     // types
     struct page_t {
@@ -48,9 +50,6 @@ private:
     std::list<KeyT> a1out_;
     std::list<KeyT> am_;
     std::vector<page_t> cache_;
-    // for statistic
-    size_t n_hits_   = 0;
-    size_t n_misses_ = 0;
     // methods
     void   store_to_a1in  (const page_t& page, size_t free_idx);
     void   store_to_am    (const page_t& page, size_t free_idx);
@@ -63,17 +62,17 @@ private:
 
 public:
     explicit qq_cache(size_t a1in_cap, size_t am_cap, size_t a1out_cap);
-    ~qq_cache() = default;
+    ~qq_cache() override = default;
     qq_cache(const qq_cache&) = delete;
     qq_cache& operator=(const qq_cache&) = delete;
 
-    size_t capacity() const {return a1in_cap_ + am_cap_;}
-    size_t hits()     const {return n_hits_;}
-    size_t misses()   const {return n_misses_;}
-    size_t size()     const {return cache_.size();}
-    bool   is_full()  const {return size() == capacity();}
+    size_t capacity() const override {return a1in_cap_ + am_cap_;}
+    size_t size()     const override {return cache_.size();}
+    size_t hits()     const override;
+    size_t misses()   const override;
+    bool   is_full()  const override;
 
-    template <typename F> std::pair<T, bool> lookup_update(const KeyT& key, F slow_get_page);
+    std::pair<T, bool> lookup_update(const KeyT& key, std::pair<T, bool> (*slow_get_page)(const KeyT& key)) override;
 };
 
 template <typename T, typename KeyT>
@@ -95,12 +94,11 @@ qq_cache<T, KeyT>::qq_cache(size_t a1in_cap, size_t am_cap, size_t a1out_cap)
 }
 
 template <typename T, typename KeyT>
-template <typename F>
-std::pair<T, bool> qq_cache<T, KeyT>::lookup_update(const KeyT& key, F slow_get_page) {
+std::pair<T, bool> qq_cache<T, KeyT>::lookup_update(const KeyT& key, std::pair<T, bool> (*slow_get_page)(const KeyT& key)) {
     auto page_it = hash_.find(key);
 
     if (page_it == hash_.end()) {
-        page_t new_page{slow_get_page(key), key};
+        page_t new_page{slow_get_page(key).first, key};
 
         const auto free_idx = evict_from_cache_if_need();
         meta_data_t new_meta {
@@ -111,7 +109,7 @@ std::pair<T, bool> qq_cache<T, KeyT>::lookup_update(const KeyT& key, F slow_get_
         };
         hash_.emplace(key, new_meta);
         store_to_a1in(new_page, free_idx);
-        ++n_misses_;
+        cache<T, KeyT>::n_misses_++;
         return {new_page.content, false};
     }
 
@@ -121,17 +119,17 @@ std::pair<T, bool> qq_cache<T, KeyT>::lookup_update(const KeyT& key, F slow_get_
         am_.splice(am_.begin(), am_, meta.iter);    
         [[fallthrough]];
     case A1IN:
-        ++n_hits_;
+        cache<T, KeyT>::n_hits_++;
         return {cache_[meta.idx].content, true};
 
     case A1OUT: {
-        page_t new_page{slow_get_page(key), key};
+        page_t new_page{slow_get_page(key).first, key};
         // Reclaim may add a ghost and trim A1out. Remove this key first
         // so its metadata survives and no other ghost is needlessly lost.
         a1out_.erase(meta.iter);
         const auto free_idx = evict_from_cache_if_need();
         store_to_am(new_page, free_idx);
-        ++n_misses_;
+        cache<T, KeyT>::n_misses_++;
         return {new_page.content, false};
     }
     

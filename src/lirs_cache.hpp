@@ -11,10 +11,12 @@
 #include <vector>
 #include <stdexcept>
 
+#include "cache.hpp"
+
 namespace caches {
 
 template <typename T, typename KeyT>
-class lirs_cache {
+class lirs_cache : public cache<T, KeyT> {
 private:
     // types
     struct page_t {
@@ -49,9 +51,6 @@ private:
     std::list<KeyT> s_;
     std::list<KeyT> q_;
     std::vector<page_t> cache_;
-    // for statistic
-    size_t n_hits_   = 0;
-    size_t n_misses_ = 0;
     // methods
     void   s_pruning();
     void   store_to_cache(const page_t& page, size_t idx);
@@ -62,17 +61,17 @@ private:
 
 public:
     explicit lirs_cache(size_t cap, size_t q_cap, size_t s_cap);
-    ~lirs_cache() = default;
+    ~lirs_cache() override = default;
     lirs_cache(const lirs_cache&) = delete;
     lirs_cache& operator=(const lirs_cache&) = delete;
 
-    size_t capacity() const {return cap_;}
-    size_t hits()     const {return n_hits_;}
-    size_t misses()   const {return n_misses_;}
-    size_t size()     const {return cache_.size();}
-    bool   is_full()  const {return size() == capacity();}
+    size_t capacity() const override {return cap_;}
+    size_t size()     const override {return cache_.size();}
+    size_t hits()     const override;
+    size_t misses()   const override;
+    bool   is_full()  const override;
 
-    template <typename F> std::pair<T, bool> lookup_update(const KeyT& key, F slow_get_page);
+    std::pair<T, bool> lookup_update(const KeyT& key, std::pair<T, bool> (*slow_get_page)(const KeyT& key)) override;
 };
 
 template <typename T, typename KeyT>
@@ -91,12 +90,11 @@ lirs_cache<T, KeyT>::lirs_cache(size_t cap, size_t q_cap, size_t s_cap)
 }
 
 template <typename T, typename KeyT>
-template <typename F>
-std::pair<T, bool> lirs_cache<T, KeyT>::lookup_update(const KeyT& key, F slow_get_page) {
+std::pair<T, bool> lirs_cache<T, KeyT>::lookup_update(const KeyT& key, std::pair<T, bool> (*slow_get_page)(const KeyT& key)) {
     auto page_iter = hash_.find(key);
 
     if (page_iter == hash_.end()) {
-        page_t new_page{slow_get_page(key), key};
+        page_t new_page{slow_get_page(key).first, key};
 
         const bool make_lir = cache_.size() - q_.size() < cap_ - q_cap_;
         const auto free_idx = evict_from_q_if_need();
@@ -114,7 +112,7 @@ std::pair<T, bool> lirs_cache<T, KeyT>::lookup_update(const KeyT& key, F slow_ge
         evict_from_s_if_need();
         store_to_cache(new_page, free_idx);
         s_pruning();
-        ++n_misses_;
+        cache<T, KeyT>::n_misses_++;
         return {cache_[free_idx].content, false};
     }
 
@@ -124,7 +122,7 @@ std::pair<T, bool> lirs_cache<T, KeyT>::lookup_update(const KeyT& key, F slow_ge
     case LIR:
         s_.splice(s_.begin(), s_, meta_data.s_iter);
         s_pruning();
-        ++n_hits_;
+        cache<T, KeyT>::n_hits_++;
         return {cache_[meta_data.idx].content, true};
 
     case HIR_R:
@@ -143,11 +141,11 @@ std::pair<T, bool> lirs_cache<T, KeyT>::lookup_update(const KeyT& key, F slow_ge
             q_.splice(q_.begin(), q_, meta_data.q_iter);
         }
         s_pruning();
-        ++n_hits_;
+        cache<T, KeyT>::n_hits_++;
         return {cache_[meta_data.idx].content, true};
 
     case HIR_N: {
-        page_t new_page{slow_get_page(key), key};
+        page_t new_page{slow_get_page(key).first, key};
 
         s_.splice(s_.begin(), s_, meta_data.s_iter);
         const auto free_idx = evict_from_q_if_need();
@@ -159,7 +157,7 @@ std::pair<T, bool> lirs_cache<T, KeyT>::lookup_update(const KeyT& key, F slow_ge
         store_to_cache(new_page, free_idx);
 
         s_pruning();
-        ++n_misses_;
+        cache<T, KeyT>::n_misses_++;
         return {cache_[free_idx].content, false};
     }
     default:
