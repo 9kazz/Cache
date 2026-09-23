@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cstddef>
 #include <list>
 #include <unordered_map>
@@ -36,9 +38,6 @@ public:
     
     size_t capacity() const override {return cap_;}
     size_t size()     const override {return cache_.size();}
-    size_t hits()     const override;
-    size_t misses()   const override;
-    bool   is_full()  const override;
 
     std::pair<T, bool> lookup_update(const KeyT& key, std::pair<T, bool> (*slow_get_page)(const KeyT& key)) override;
 };
@@ -72,7 +71,7 @@ std::pair<T, bool> lru_cache<T, KeyT>::lookup_update(const KeyT& key, std::pair<
 
 template <typename T, typename KeyT>
 typename lru_cache<T, KeyT>::list_iter_t lru_cache<T, KeyT>::store(const page_t& page) {
-    if (is_full()) {
+    if (this->is_full()) {
         rm_elem();
     }
     cache_.push_front(page);

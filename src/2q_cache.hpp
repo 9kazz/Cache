@@ -68,9 +68,6 @@ public:
 
     size_t capacity() const override {return a1in_cap_ + am_cap_;}
     size_t size()     const override {return cache_.size();}
-    size_t hits()     const override;
-    size_t misses()   const override;
-    bool   is_full()  const override;
 
     std::pair<T, bool> lookup_update(const KeyT& key, std::pair<T, bool> (*slow_get_page)(const KeyT& key)) override;
 };
@@ -191,7 +188,7 @@ template <typename T, typename KeyT>
 size_t qq_cache<T, KeyT>::evict_from_cache_if_need() {
     assert(size() <= capacity());
 
-    if (!is_full()) {
+    if (!this->is_full()) {
         return cache_.size();
     }
     if (a1in_.size() > a1in_cap_) {

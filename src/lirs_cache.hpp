@@ -67,9 +67,6 @@ public:
 
     size_t capacity() const override {return cap_;}
     size_t size()     const override {return cache_.size();}
-    size_t hits()     const override;
-    size_t misses()   const override;
-    bool   is_full()  const override;
 
     std::pair<T, bool> lookup_update(const KeyT& key, std::pair<T, bool> (*slow_get_page)(const KeyT& key)) override;
 };
@@ -242,7 +239,7 @@ void lirs_cache<T, KeyT>::evict_from_s_if_need() {
 // return first free idx in cache
 template <typename T, typename KeyT>
 size_t lirs_cache<T, KeyT>::evict_from_q_if_need() {
-    if (!is_full()) {
+    if (!this->is_full()) {
         return cache_.size();
     }
     auto  it   = hash_.find(q_.back());
