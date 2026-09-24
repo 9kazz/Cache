@@ -10,7 +10,7 @@
 #include <cmath>
 #include <vector>
 #include <stdexcept>
-#include <limits>
+#include <string>
 
 #include "cache.hpp"
 
@@ -19,6 +19,21 @@ namespace caches {
 template <typename T, typename KeyT>
 class qq_cache : public cache<T, KeyT> {
 private:
+    static constexpr size_t default_a1in_divisor  = 4;
+    static constexpr size_t default_a1out_divisor = 2;
+
+    static size_t validate_default_capacity(size_t cap) {
+        constexpr size_t min_capacity = default_a1in_divisor > default_a1out_divisor
+            ? default_a1in_divisor : default_a1out_divisor;
+            
+        if (cap < min_capacity) {
+            throw std::invalid_argument(
+                "qq_cache(cap): minimum cache size: " + std::to_string(min_capacity) +
+                " pages; use the full constructor for more detailed configuration");
+        }
+        return cap;
+    }
+
     // types
     struct page_t {
         T    content;
@@ -61,6 +76,8 @@ private:
     size_t evict_from_am();
 
 public:
+    // cap must be >= both default divisors so neither queue size rounds to zero.
+    explicit qq_cache(size_t cap);
     explicit qq_cache(size_t a1in_cap, size_t am_cap, size_t a1out_cap);
     ~qq_cache() override = default;
     qq_cache(const qq_cache&) = delete;
@@ -73,19 +90,23 @@ public:
 };
 
 template <typename T, typename KeyT>
+qq_cache<T, KeyT>::qq_cache(size_t cap)
+    : qq_cache(validate_default_capacity(cap) / default_a1in_divisor,
+               cap - cap / default_a1in_divisor,
+               cap / default_a1out_divisor)
+{}
+
+template <typename T, typename KeyT>
 qq_cache<T, KeyT>::qq_cache(size_t a1in_cap, size_t am_cap, size_t a1out_cap)
     : a1in_cap_  {a1in_cap},
       a1out_cap_ {a1out_cap},
       am_cap_    {am_cap}
 {
     if (a1in_cap_ == 0 || am_cap_ == 0) {
-        throw std::invalid_argument("Incorrect capacity of A1IN or AM queues");
+        throw std::invalid_argument("qq_cache(a1in_cap, am_cap, a1out_cap): a1in_cap and am_cap must both be > 0; physical capacity = a1in_cap + am_cap (at least 2 pages)");
     }
     if (a1out_cap_ == 0) {
-        throw std::invalid_argument("Incorrect capacity of A1OUT queue");
-    }
-    if (am_cap_ > std::numeric_limits<size_t>::max() - a1in_cap_) {
-        throw std::invalid_argument("2Q cache capacity overflow");
+        throw std::invalid_argument("qq_cache(a1in_cap, am_cap, a1out_cap): a1out_cap must be > 0; it limits history entries, not resident pages");
     }
     cache_.reserve(capacity());
 }

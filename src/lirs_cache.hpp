@@ -10,6 +10,7 @@
 #include <cmath>
 #include <vector>
 #include <stdexcept>
+#include <string>
 
 #include "cache.hpp"
 
@@ -18,6 +19,19 @@ namespace caches {
 template <typename T, typename KeyT>
 class lirs_cache : public cache<T, KeyT> {
 private:
+    static constexpr size_t default_q_divisor    = 100;
+    static constexpr size_t default_s_multiplier = 2;
+
+    static size_t validate_default_capacity(size_t cap) {
+        constexpr size_t min_capacity = default_q_divisor;
+        if (cap < min_capacity) {
+            throw std::invalid_argument(
+                "lirs_cache(cap): minimum cache size: " + std::to_string(min_capacity) +
+                " pages; use the full constructor for more detailed configuration");
+        }
+        return cap;
+    }
+
     // types
     struct page_t {
         T    content;
@@ -60,6 +74,7 @@ private:
     void   evict_from_s_if_need();
 
 public:
+    explicit lirs_cache(size_t cap);
     explicit lirs_cache(size_t cap, size_t q_cap, size_t s_cap);
     ~lirs_cache() override = default;
     lirs_cache(const lirs_cache&) = delete;
@@ -72,16 +87,23 @@ public:
 };
 
 template <typename T, typename KeyT>
+lirs_cache<T, KeyT>::lirs_cache(size_t cap)
+    : lirs_cache(validate_default_capacity(cap),
+                 cap / default_q_divisor,
+                 cap * default_s_multiplier)
+{}
+
+template <typename T, typename KeyT>
 lirs_cache<T, KeyT>::lirs_cache(size_t cap, size_t q_cap, size_t s_cap)
     : cap_   {cap},
       s_cap_ {s_cap},
       q_cap_ {q_cap}
 {
     if (cap_ == 0 || q_cap_ == 0 || q_cap_ >= cap) {
-        throw std::invalid_argument("Incorrect capacity of cache or Q stack");
+        throw std::invalid_argument("lirs_cache(cap, q_cap, s_cap): cap must be >= 2 pages and 0 < q_cap < cap; Q holds resident HIR pages, leaving cap - q_cap LIR pages");
     }
     if (s_cap_ == 0 || s_cap_ <= cap_) {
-        throw std::invalid_argument("S stack capacity must be more than cache capacity");
+        throw std::invalid_argument("lirs_cache(cap, q_cap, s_cap): s_cap must be > cap; S holds LIR and HIR entries, including non-resident history");
     }
     cache_.reserve(cap);
 }

@@ -95,7 +95,7 @@ private:
 
     // members
     size_t cap_;
-    size_t p_        = 0;
+    size_t p_ = 0;
 
     list_t  t1_, t2_;     // pages,  [MRU ... LRU]
     ghost_t b1_, b2_;     // ghosts, [MRU ... LRU]
