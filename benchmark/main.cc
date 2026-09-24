@@ -1,17 +1,19 @@
 #include <string>
 
-#include "reader.hpp"
+#include "environment.hpp"
 #include "data_base.hpp"
 #include "workload.hpp"
 #include "../src/cache.hpp"
-#include "../src/lru_cache.hpp"
+#include "../src/lirs_cache.hpp"
 
 int main() {
     using namespace caches;
     using namespace benchmark;
 
-    reader<std::string, int> input;
-    input.get_data("bench_data.json");
+    environment<std::string, int> input;
+    input.get_data("benchmark/bench_data.json");
+    input.get_config("benchmark/config.json");
+    input.print_cache();
 
     static data_base<std::string, int> all_pages(std::move(input.pages()));
     workload<int> access_seq(std::move(input.sequence()));
@@ -20,7 +22,7 @@ int main() {
         return all_pages.get_page(key);
     };
 
-    lru_cache<std::string, int> l1(10);
+    lirs_cache<std::string, int> l1(100);
 
     const auto access_num = access_seq.size();
     for (auto cnt = 0; cnt < access_num; cnt++) {

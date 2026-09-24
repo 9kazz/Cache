@@ -1,0 +1,9 @@
+{
+    "pages": [
+        {"key": 1, "content": "diana"},
+        {"key": 2, "content": "liza"},
+        {"key": 3, "content": "yana"}
+    ],
+
+    "workload": [1, 2, 3, 1, 1, 2, 2, 1]
+}
