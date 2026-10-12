@@ -4,7 +4,6 @@
 // [small]  `typename std::list<page_t>` and `typename std::unordered_map<...>`:
 //          typename is not needed there, only before list_t::iterator.
 //          Figure out the rule (dependent qualified names).
-// [small]  Extra `;` after the constructor body `{};`.
 // [small]  size_t without std:: compiles only because <cstddef> usually also
 //          puts it into the global namespace. std::size_t is the portable one.
 // [small]  hash_[page.key] = ... in store(): operator[] default-constructs the
@@ -12,7 +11,7 @@
 // [medium] rm_elem() keeps `const auto& hkey` - a reference into the list node.
 //          It is fine only because hash_.erase() runs before pop_back().
 //          What exactly breaks if you swap these two lines?
-// [medium] The page is copied: slow_get_page -> page -> list node -> return.
+// [medium] The page is copied: slow_get_page() -> page -> list node -> return.
 //          Try T = std::string and think where std::move / emplace_front help.
 // [medium] Exception safety: slow_get_page() is called before store(), so if
 //          it throws the cache is untouched. Keep this order when refactoring.
@@ -25,8 +24,9 @@
 //          they are written as cache<T, KeyT>::n_hits_, and is_full() as
 //          this->is_full(). Why does a plain n_hits_ not compile inside a
 //          class template? (dependent base class, two-phase name lookup)
-// [small]  slow_get_page returns std::pair<T, bool> (base class interface),
-//          only .first is used. Discuss with the team what .second means.
+// [small]  On a miss the page comes from this->slow_get_page(key) (cache.hpp):
+//          lookup_update of the next level, or the slow storage for the last
+//          one. Only .first is used; .second says if it was a hit down there.
 // --------------------------------------------------------------------------
 
 #include <cstddef>
@@ -72,7 +72,8 @@ private:
     void refresh(list_iter_t eltit);
     void rm_elem();                                                                                
 public:
-    explicit lru_cache(size_t capacity) : cap_(capacity) {};
+    lru_cache(size_t capacity, cache<T, KeyT>* next, slow_get_page_t<T, KeyT> storage)
+        : cache<T, KeyT>(next, storage), cap_(capacity) {}
     ~lru_cache() override = default;
     lru_cache(const lru_cache&) = delete;
     lru_cache& operator=(const lru_cache&) = delete;
@@ -80,15 +81,15 @@ public:
     size_t capacity() const override {return cap_;}
     size_t size()     const override {return cache_.size();}
     
-    std::pair<T, bool> lookup_update(const KeyT& key, std::pair<T, bool> (*slow_get_page)(const KeyT& key)) override;
+    std::pair<T, bool> lookup_update(const KeyT& key) override;
 };
 
 template <typename T, typename KeyT>
-std::pair<T, bool> lru_cache<T, KeyT>::lookup_update(const KeyT& key, std::pair<T, bool> (*slow_get_page)(const KeyT& key)) {
+std::pair<T, bool> lru_cache<T, KeyT>::lookup_update(const KeyT& key) {
     if (cap_ == 0) { // temporary special case, keep it: with cap_ == 0
                      // rm_elem() would pop_back() an empty list
         cache<T, KeyT>::n_misses_++;
-        return {slow_get_page(key).first, false};
+        return {this->slow_get_page(key).first, false};
     }
 
     auto hit = hash_.find(key);
@@ -102,7 +103,7 @@ std::pair<T, bool> lru_cache<T, KeyT>::lookup_update(const KeyT& key, std::pair<
     }
     // cache miss
     page_t page {
-        .content = slow_get_page(key).first, 
+        .content = this->slow_get_page(key).first, 
         .key     = key
     };
     store(page);

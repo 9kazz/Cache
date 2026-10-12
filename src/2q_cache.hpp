@@ -77,8 +77,8 @@ private:
 
 public:
     // cap must be >= both default divisors so neither queue size rounds to zero.
-    explicit qq_cache(size_t cap);
-    explicit qq_cache(size_t a1in_cap, size_t am_cap, size_t a1out_cap);
+    qq_cache(size_t cap, cache<T, KeyT>* next, slow_get_page_t<T, KeyT> storage);
+    qq_cache(size_t a1in_cap, size_t am_cap, size_t a1out_cap, cache<T, KeyT>* next, slow_get_page_t<T, KeyT> storage);
     ~qq_cache() override = default;
     qq_cache(const qq_cache&) = delete;
     qq_cache& operator=(const qq_cache&) = delete;
@@ -86,19 +86,21 @@ public:
     size_t capacity() const override {return a1in_cap_ + am_cap_;}
     size_t size()     const override {return cache_.size();}
 
-    std::pair<T, bool> lookup_update(const KeyT& key, std::pair<T, bool> (*slow_get_page)(const KeyT& key)) override;
+    std::pair<T, bool> lookup_update(const KeyT& key) override;
 };
 
 template <typename T, typename KeyT>
-qq_cache<T, KeyT>::qq_cache(size_t cap)
+qq_cache<T, KeyT>::qq_cache(size_t cap, cache<T, KeyT>* next, slow_get_page_t<T, KeyT> storage)
     : qq_cache(validate_default_capacity(cap) / default_a1in_divisor,
                cap - cap / default_a1in_divisor,
-               cap / default_a1out_divisor)
+               cap / default_a1out_divisor,
+               next, storage)
 {}
 
 template <typename T, typename KeyT>
-qq_cache<T, KeyT>::qq_cache(size_t a1in_cap, size_t am_cap, size_t a1out_cap)
-    : a1in_cap_  {a1in_cap},
+qq_cache<T, KeyT>::qq_cache(size_t a1in_cap, size_t am_cap, size_t a1out_cap, cache<T, KeyT>* next, slow_get_page_t<T, KeyT> storage)
+    : cache<T, KeyT>(next, storage),
+      a1in_cap_  {a1in_cap},
       a1out_cap_ {a1out_cap},
       am_cap_    {am_cap}
 {
@@ -112,11 +114,11 @@ qq_cache<T, KeyT>::qq_cache(size_t a1in_cap, size_t am_cap, size_t a1out_cap)
 }
 
 template <typename T, typename KeyT>
-std::pair<T, bool> qq_cache<T, KeyT>::lookup_update(const KeyT& key, std::pair<T, bool> (*slow_get_page)(const KeyT& key)) {
+std::pair<T, bool> qq_cache<T, KeyT>::lookup_update(const KeyT& key) {
     auto page_it = hash_.find(key);
 
     if (page_it == hash_.end()) {
-        page_t new_page{slow_get_page(key).first, key};
+        page_t new_page{this->slow_get_page(key).first, key};
 
         const auto free_idx = evict_from_cache_if_need();
         meta_data_t new_meta {
@@ -141,7 +143,7 @@ std::pair<T, bool> qq_cache<T, KeyT>::lookup_update(const KeyT& key, std::pair<T
         return {cache_[meta.idx].content, true};
 
     case A1OUT: {
-        page_t new_page{slow_get_page(key).first, key};
+        page_t new_page{this->slow_get_page(key).first, key};
         // Reclaim may add a ghost and trim A1out. Remove this key first
         // so its metadata survives and no other ghost is needlessly lost.
         a1out_.erase(meta.iter);

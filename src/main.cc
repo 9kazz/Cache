@@ -5,18 +5,17 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
-#include "cache.hpp"
-#include "arc_cache.hpp"
-#include "lfu_cache.hpp"
-#include "lru_cache.hpp"
+#include "cache_hierarchy.hpp"
 
 using PageId  = long long;
 using Page    = long long;
 using cache_t = caches::cache<Page, PageId>;
 
-std::pair<Page, bool> slow_get_page(const PageId& key) { return {key, true}; }
+// the slow storage for tests: the page of key k is k itself
+std::pair<Page, bool> slow_get_page(const PageId& key) { return {key, false}; }
 
 bool read_integer(long long &value) {
     if (!(std::cin >> value))
@@ -28,31 +27,57 @@ bool read_integer(long long &value) {
             std::isspace(static_cast<unsigned char>(next)));
 }
 
-// create a strategy by its name
-std::unique_ptr<cache_t> make_cache(const std::string& name, std::size_t m) {
-    if (name == "lru")
-        return std::make_unique<caches::lru_cache<Page, PageId>>(m);
-    if (name == "lfu")
-        return std::make_unique<caches::lfu_cache<Page, PageId>>(m);
-    if (name == "arc")
-        return std::make_unique<caches::arc_cache<Page, PageId>>(m);
-    throw std::invalid_argument("unknown strategy: " + name);
+// "arc:16" -> {"arc", 16}
+std::pair<std::string, std::size_t> parse_level(const std::string& arg) {
+    const std::size_t colon = arg.find(':');
+    if (colon == std::string::npos || colon + 1 == arg.size())
+        throw std::invalid_argument("expected <strategy>:<size>, got: " + arg);
+
+    const std::string size_str = arg.substr(colon + 1);
+    for (char c : size_str)
+        if (!std::isdigit(static_cast<unsigned char>(c)))
+            throw std::invalid_argument("bad size in: " + arg);
+
+    return {arg.substr(0, colon), std::stoull(size_str)};
 }
 
-// the same loop for every strategy: calls go through the virtual interface
-std::size_t run(cache_t& cache, const std::vector<PageId>& keys) {
+// one strategy alone: it reads straight from the slow storage
+std::size_t run_single(const std::string& name, std::size_t m, const std::vector<PageId>& keys) {
+    std::unique_ptr<cache_t> cache = caches::make_cache<Page, PageId>(name, m, nullptr, slow_get_page);
     for (PageId key : keys)
-        cache.lookup_update(key, slow_get_page);
-    return cache.hits();
+        cache->lookup_update(key);
+    return cache->hits();
 }
 
-// usage: ./cache [lru|lfu|arc|all] < test
-// stdin: m n k1 k2 ... kn
+void run_hierarchy(int argc, char* argv[], const std::vector<PageId>& keys) {
+    std::vector<std::pair<std::string, std::size_t>> levels;
+    for (int i = 2; i < argc; ++i)
+        levels.push_back(parse_level(argv[i]));
+
+    caches::cache_hierarchy<Page, PageId> hierarchy(levels, slow_get_page);
+    for (PageId key : keys)
+        hierarchy.lookup_update(key);
+
+    for (std::size_t i = 0; i < hierarchy.levels(); ++i) {
+        const cache_t& level = hierarchy.level(i);
+        std::cout << "L" << i + 1 << " " << argv[i + 2]
+                  << ": hits " << level.hits() << ", misses " << level.misses() << "\n";
+    }
+    // every miss of the last level is one read of the slow storage
+    std::cout << "storage reads: " << hierarchy.level(hierarchy.levels() - 1).misses() << "\n";
+}
+
+// usage: ./cache [lru|lfu|arc|2q|lirs|all] < test
+//        ./cache hier <strategy>:<size> ... < test    (L1 first, e.g. lru:4 arc:16)
+// stdin: m n k1 k2 ... kn   (m is ignored in hier mode, sizes come from args)
 int main(int argc, char* argv[]) {
-    const std::vector<std::string> names = {"lru", "lfu", "arc"};
+    const std::vector<std::string> names = {"lru", "lfu", "arc", "2q", "lirs"};
     const std::string mode = (argc > 1) ? argv[1] : "lru";
-    if (mode != "all" && std::find(names.begin(), names.end(), mode) == names.end()) {
-        std::cerr << "Usage: " << argv[0] << " [lru|lfu|arc|all]\n";
+    const bool known = mode == "all" || mode == "hier" ||
+                       std::find(names.begin(), names.end(), mode) != names.end();
+    if (!known || (mode == "hier" && argc < 3)) {
+        std::cerr << "Usage: " << argv[0] << " [lru|lfu|arc|2q|lirs|all]\n"
+                  << "       " << argv[0] << " hier <strategy>:<size> ...\n";
         return 1;
     }
 
@@ -75,15 +100,23 @@ int main(int argc, char* argv[]) {
     }
 
     const std::size_t sz = static_cast<std::size_t>(m);
-    if (mode != "all") {
-        std::unique_ptr<cache_t> cache = make_cache(mode, sz);
-        std::cout << run(*cache, keys) << std::endl;
-        return std::cout ? 0 : 1;
-    }
-
-    for (const std::string& name : names) {
-        std::unique_ptr<cache_t> cache = make_cache(name, sz);
-        std::cout << name << ": " << run(*cache, keys) << "\n";
+    try {
+        if (mode == "hier")
+            run_hierarchy(argc, argv, keys);
+        else if (mode != "all")
+            std::cout << run_single(mode, sz, keys) << std::endl;
+        else
+            for (const std::string& name : names) {
+                std::cout << name << ": ";
+                try {
+                    std::cout << run_single(name, sz, keys) << "\n";
+                } catch (const std::invalid_argument& e) {
+                    std::cout << "n/a (" << e.what() << ")\n";  // 2Q / LIRS need a bigger cache
+                }
+            }
+    } catch (const std::exception& e) {
+        std::cerr << mode << ": " << e.what() << "\n";
+        return 1;
     }
     return std::cout ? 0 : 1;
 }

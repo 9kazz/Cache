@@ -34,8 +34,9 @@
 //          they are written as cache<T, KeyT>::n_hits_, and is_full() as
 //          this->is_full(). Why does a plain n_hits_ not compile inside a
 //          class template? (dependent base class, two-phase name lookup)
-// [small]  slow_get_page returns std::pair<T, bool> (base class interface),
-//          only .first is used. Discuss with the team what .second means.
+// [small]  On a miss the page comes from this->slow_get_page(key) (cache.hpp):
+//          lookup_update of the next level, or the slow storage for the last
+//          one. Only .first is used; .second says if it was a hit down there.
 // --------------------------------------------------------------------------
 
 #include <algorithm>
@@ -113,7 +114,8 @@ private:
     void make_room();
 
 public:
-    explicit arc_cache(size_t capacity) : cap_(capacity) {}
+    arc_cache(size_t capacity, cache<T, KeyT>* next, slow_get_page_t<T, KeyT> storage)
+        : cache<T, KeyT>(next, storage), cap_(capacity) {}
     ~arc_cache() override = default;
     arc_cache(const arc_cache&) = delete;
     arc_cache& operator=(const arc_cache&) = delete;
@@ -121,14 +123,14 @@ public:
     size_t capacity() const override {return cap_;}
     size_t size()     const override {return hash_.size();}
 
-    std::pair<T, bool> lookup_update(const KeyT& key, std::pair<T, bool> (*slow_get_page)(const KeyT& key)) override;
+    std::pair<T, bool> lookup_update(const KeyT& key) override;
 };
 
 template <typename T, typename KeyT>
-std::pair<T, bool> arc_cache<T, KeyT>::lookup_update(const KeyT& key, std::pair<T, bool> (*slow_get_page)(const KeyT& key)) {
+std::pair<T, bool> arc_cache<T, KeyT>::lookup_update(const KeyT& key) {
     if (cap_ == 0) {
         cache<T, KeyT>::n_misses_++;
-        return {slow_get_page(key).first, false};
+        return {this->slow_get_page(key).first, false};
     }
 
     // case I: the page is cached (T1 or T2)
@@ -154,7 +156,7 @@ std::pair<T, bool> arc_cache<T, KeyT>::lookup_update(const KeyT& key, std::pair<
         erase_ghost(key, gelem);
 
         page_t page {
-            .content = slow_get_page(key).first,
+            .content = this->slow_get_page(key).first,
             .key     = key
         };
         store(t2_, true, page);           // requested >= 2 times => straight to T2
@@ -167,7 +169,7 @@ std::pair<T, bool> arc_cache<T, KeyT>::lookup_update(const KeyT& key, std::pair<
     make_room();
 
     page_t page {
-        .content = slow_get_page(key).first,
+        .content = this->slow_get_page(key).first,
         .key     = key
     };
     store(t1_, false, page);
