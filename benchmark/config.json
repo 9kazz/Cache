@@ -1,0 +1,7 @@
+{
+  "count_of_levels": 2,
+  "hierarchy": [
+    {"type": "LRU", "size": 10},
+    {"type": "LIRS", "size": 100}
+  ]
+}
