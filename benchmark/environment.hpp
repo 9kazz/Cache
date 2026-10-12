@@ -5,9 +5,11 @@
 #include <string>
 #include <type_traits>
 #include <unordered_map>
+#include <string>
 #include <utility>
 #include <vector>
 #include <iostream>
+#include <getopt.h>
 #include "third_party/nlohmann/json.hpp"
 
 namespace benchmark {
@@ -48,6 +50,9 @@ private:
         {"LIRS", LIRS}
     };
 
+    std::string data_;
+    std::string config_; 
+
     std::vector<cache_level> hierarchy_;
     std::unordered_map<KeyT, T> all_pages_;
     std::vector<KeyT> access_seq_;
@@ -58,8 +63,13 @@ public:
     environment(const environment&) = delete;
     environment& operator=(const environment&) = delete;
 
-    void get_data(const char* file_name);
-    void get_config(const char* file_name);
+    bool setup      (int argc, char* argv[]);
+    bool setup      (const char* data_file, const char* config_file);
+    void get_data   (const std::string file_name);
+    void get_data   ();
+    void get_config (const std::string file_name);
+    void get_config ();
+    void get_opt    (int argc, char* argv[]);
     
     void   append_level(CACHE_TYPE type, size_t size);
     size_t cnt_levels()  const { return hierarchy_.size(); }
@@ -72,6 +82,33 @@ public:
     std::vector<KeyT>&               sequence()       { return access_seq_; }
     const std::vector<KeyT>&         sequence() const { return access_seq_; }
 };
+
+template <typename T, typename KeyT>
+bool environment<T, KeyT>::setup(int argc, char* argv[]) {
+    try {
+        get_opt(argc, argv);
+        get_data();
+        get_config();
+    } catch (const std::exception& error) {
+        std::cerr << "Environment was not set up: " << "\"" << error.what() << "\"\n";
+        return false;
+    }
+    
+    return true;
+}
+
+template <typename T, typename KeyT>
+bool environment<T, KeyT>::setup(const char* data_file, const char* config_file) {
+    try {
+        get_data(data_file);
+        get_config(config_file);
+    } catch (const std::exception& error) {
+        std::cerr << "Environment was not set up: " << "\"" << error.what() << "\"\n";
+        return false;
+    }
+    
+    return true;
+}
 
 template <typename T, typename KeyT>
 void environment<T, KeyT>::append_level(CACHE_TYPE type, size_t size) {
@@ -93,7 +130,19 @@ void environment<T, KeyT>::print_cache() const {
 }
 
 template <typename T, typename KeyT>
-void environment<T, KeyT>::get_data(const char* file_name) {
+void environment<T, KeyT>::get_data() {
+    if (data_.empty()) {
+        throw std::invalid_argument("environment::get_data: data file name is empty");
+    }
+    get_data(data_);
+}
+
+template <typename T, typename KeyT>
+void environment<T, KeyT>::get_data(const std::string file_name) {
+    if (file_name.empty()) {
+        throw std::invalid_argument("environment::get_data: empty string file_name");
+    }    
+    
     std::ifstream file(file_name);
     if (!file.is_open()) {
         throw std::invalid_argument("environment::get_data: fail to open file");
@@ -170,7 +219,19 @@ void environment<T, KeyT>::get_data(const char* file_name) {
 }
 
 template <typename T, typename KeyT>
-void environment<T, KeyT>::get_config(const char* file_name) {
+void environment<T, KeyT>::get_config() {
+    if (config_.empty()) {
+        throw std::invalid_argument("environment::get_config: config file name is empty");
+    }
+    get_config(config_);
+}
+
+template <typename T, typename KeyT>
+void environment<T, KeyT>::get_config(const std::string file_name) {
+    if (file_name.empty()) {
+        throw std::invalid_argument("environment::get_config: empty string file_name");
+    }    
+
     std::ifstream file(file_name);
     if (!file.is_open()) {
         throw std::invalid_argument("environment::get_config: fail to open file");
@@ -239,6 +300,52 @@ void environment<T, KeyT>::get_config(const char* file_name) {
     }
 
     hierarchy_.swap(temp_hierarchy);
+}
+
+template <typename T, typename KeyT>
+void environment<T, KeyT>::get_opt(int argc, char* argv[]) {
+    if (!argv) {
+        throw std::invalid_argument("environment::get_opt: null pointer to argv");
+    }
+
+    const struct option long_opt[] = {
+        {"config", required_argument, 0, 'c'},
+        {"data",   required_argument, 0, 'd'},
+        {0,        0,                 0,  0 }
+    };
+
+    std::string temp_config;
+    std::string temp_data;
+
+    while (true) {
+        const int opt = getopt_long(argc, argv, "c:d:", long_opt, nullptr);
+
+        if (opt == -1)
+            break;
+
+        switch (opt) {
+        case 'c':
+            temp_config = optarg;
+            break;
+
+        case 'd':
+            temp_data = optarg;
+            break;
+
+        case '?':
+            throw std::runtime_error("environment::get_opt: invalid option");
+
+        default:
+            throw std::runtime_error("environment::get_opt: unexpected getopt_long result: 0");
+        }
+    }
+
+    if (optind < argc) {
+        throw std::runtime_error("environment::get_opt: unexpected positional argument (may exist some options without required argument)");
+    }
+
+    data_.swap(temp_data);
+    config_.swap(temp_config);
 }
 
 }
