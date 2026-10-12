@@ -6,8 +6,6 @@
 #include <unordered_map>
 #include <utility>
 #include <cassert>
-#include <cstdint>
-#include <cmath>
 #include <vector>
 #include <stdexcept>
 #include <string>
