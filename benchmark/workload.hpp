@@ -1,7 +1,10 @@
 #pragma once
 
 #include <cstddef>
+#include <utility>
 #include <vector>
+
+#include "optimal.hpp"
 
 namespace benchmark {
 
@@ -19,8 +22,12 @@ public:
     workload& operator=(workload&& other) = default;
     ~workload() = default;
 
-    const KeyT& operator[] (size_t idx) { return data.at(idx); };
-    size_t size() { return data.size(); };
+    const KeyT& operator[] (size_t idx) const { return data.at(idx); };
+    size_t size() const { return data.size(); };
+
+    size_t optimal_hits(size_t capacity) const {
+        return benchmark::optimal_hits<KeyT>(std::span<const KeyT>(data), capacity);
+    }
 };
 
 }

@@ -1,9 +1,10 @@
+#if 0
 #include <string>
 
 #include "environment.hpp"
 #include "data_base.hpp"
 #include "workload.hpp"
-#include "../src/lirs_cache.hpp"
+#include "../caches/lirs_cache.hpp"
 
 int main(int argc, char* argv[]) {
     using namespace caches;
@@ -35,3 +36,4 @@ int main(int argc, char* argv[]) {
     l1.stat();
     return 0;
 }
+#endif
