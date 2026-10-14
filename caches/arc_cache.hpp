@@ -114,8 +114,8 @@ private:
     void make_room();
 
 public:
-    arc_cache(size_t capacity, cache<T, KeyT>* next, slow_get_page_t<T, KeyT> storage)
-        : cache<T, KeyT>(next, storage), cap_(capacity) {}
+    arc_cache(size_t capacity, slow_get_page_t<T, KeyT> storage, cache<T, KeyT>* next = nullptr)
+        : cache<T, KeyT>(storage, next), cap_(capacity) {}
     ~arc_cache() override = default;
     arc_cache(const arc_cache&) = delete;
     arc_cache& operator=(const arc_cache&) = delete;

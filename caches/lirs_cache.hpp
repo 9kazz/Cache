@@ -72,8 +72,8 @@ private:
     void   evict_from_s_if_need();
 
 public:
-    lirs_cache(size_t cap, cache<T, KeyT>* next, slow_get_page_t<T, KeyT> storage);
-    lirs_cache(size_t cap, size_t q_cap, size_t s_cap, cache<T, KeyT>* next, slow_get_page_t<T, KeyT> storage);
+    lirs_cache(size_t cap, slow_get_page_t<T, KeyT> storage, cache<T, KeyT>* next = nullptr);
+    lirs_cache(size_t cap, size_t q_cap, size_t s_cap, slow_get_page_t<T, KeyT> storage, cache<T, KeyT>* next = nullptr);
     ~lirs_cache() override = default;
     lirs_cache(const lirs_cache&) = delete;
     lirs_cache& operator=(const lirs_cache&) = delete;
@@ -85,16 +85,16 @@ public:
 };
 
 template <typename T, typename KeyT>
-lirs_cache<T, KeyT>::lirs_cache(size_t cap, cache<T, KeyT>* next, slow_get_page_t<T, KeyT> storage)
+lirs_cache<T, KeyT>::lirs_cache(size_t cap, slow_get_page_t<T, KeyT> storage, cache<T, KeyT>* next)
     : lirs_cache(validate_default_capacity(cap),
                  cap / default_q_divisor,
                  cap * default_s_multiplier,
-                 next, storage)
+                 storage, next)
 {}
 
 template <typename T, typename KeyT>
-lirs_cache<T, KeyT>::lirs_cache(size_t cap, size_t q_cap, size_t s_cap, cache<T, KeyT>* next, slow_get_page_t<T, KeyT> storage)
-    : cache<T, KeyT>(next, storage),
+lirs_cache<T, KeyT>::lirs_cache(size_t cap, size_t q_cap, size_t s_cap, slow_get_page_t<T, KeyT> storage, cache<T, KeyT>* next)
+    : cache<T, KeyT>(storage, next),
       cap_   {cap},
       s_cap_ {s_cap},
       q_cap_ {q_cap}

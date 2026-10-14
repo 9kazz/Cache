@@ -1,4 +1,3 @@
-#if 0
 #include <string>
 
 #include "environment.hpp"
@@ -23,17 +22,16 @@ int main(int argc, char* argv[]) {
         return all_pages.get_page(key);
     };
 
-    lirs_cache<std::string, int> l1(100);
-
+    caches::lirs_cache<std::string, int> l1(100, slow_get_page);
+    
     // run tests
     const auto access_num = access_seq.size();
     std::cout << "NUMBER: " << access_num << std::endl;
     for (auto cnt = 0; cnt < access_num; cnt++) {
         const auto key = access_seq[cnt];
-        l1.lookup_update(key, slow_get_page);
+        l1.lookup_update(key);
     }
 
     l1.stat();
     return 0;
 }
-#endif

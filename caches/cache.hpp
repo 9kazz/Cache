@@ -30,7 +30,7 @@ protected:
 
 public:
     // exactly one of them: the next level of a hierarchy or the slow storage
-    cache(cache* next, slow_get_page_t<T, KeyT> storage);
+    cache(slow_get_page_t<T, KeyT> storage, cache* next = nullptr);
     virtual ~cache() = default;
 
     virtual size_t capacity() const = 0; 
@@ -45,7 +45,7 @@ public:
 };
 
 template <typename T, typename KeyT>
-cache<T, KeyT>::cache(cache* next, slow_get_page_t<T, KeyT> storage)
+cache<T, KeyT>::cache(slow_get_page_t<T, KeyT> storage, cache* next)
     : next_(next),
       storage_get_(storage)
 {

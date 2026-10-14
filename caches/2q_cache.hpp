@@ -74,8 +74,8 @@ private:
 
 public:
     // cap must be >= both default divisors so neither queue size rounds to zero.
-    qq_cache(size_t cap, cache<T, KeyT>* next, slow_get_page_t<T, KeyT> storage);
-    qq_cache(size_t a1in_cap, size_t am_cap, size_t a1out_cap, cache<T, KeyT>* next, slow_get_page_t<T, KeyT> storage);
+    qq_cache(size_t cap, slow_get_page_t<T, KeyT> storage, cache<T, KeyT>* next = nullptr);
+    qq_cache(size_t a1in_cap, size_t am_cap, size_t a1out_cap, slow_get_page_t<T, KeyT> storage, cache<T, KeyT>* next = nullptr);
     ~qq_cache() override = default;
     qq_cache(const qq_cache&) = delete;
     qq_cache& operator=(const qq_cache&) = delete;
@@ -87,16 +87,16 @@ public:
 };
 
 template <typename T, typename KeyT>
-qq_cache<T, KeyT>::qq_cache(size_t cap, cache<T, KeyT>* next, slow_get_page_t<T, KeyT> storage)
+qq_cache<T, KeyT>::qq_cache(size_t cap, slow_get_page_t<T, KeyT> storage, cache<T, KeyT>* next)
     : qq_cache(validate_default_capacity(cap) / default_a1in_divisor,
                cap - cap / default_a1in_divisor,
                cap / default_a1out_divisor,
-               next, storage)
+               storage, next)
 {}
 
 template <typename T, typename KeyT>
-qq_cache<T, KeyT>::qq_cache(size_t a1in_cap, size_t am_cap, size_t a1out_cap, cache<T, KeyT>* next, slow_get_page_t<T, KeyT> storage)
-    : cache<T, KeyT>(next, storage),
+qq_cache<T, KeyT>::qq_cache(size_t a1in_cap, size_t am_cap, size_t a1out_cap, slow_get_page_t<T, KeyT> storage, cache<T, KeyT>* next)
+    : cache<T, KeyT>(storage, next),
       a1in_cap_  {a1in_cap},
       a1out_cap_ {a1out_cap},
       am_cap_    {am_cap}

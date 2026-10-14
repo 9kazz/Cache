@@ -92,8 +92,8 @@ private:
     void evict();
 
 public:
-    lfu_cache(size_t capacity, cache<T, KeyT>* next, slow_get_page_t<T, KeyT> storage)
-        : cache<T, KeyT>(next, storage), cap_(capacity) {}
+    lfu_cache(size_t capacity, slow_get_page_t<T, KeyT> storage, cache<T, KeyT>* next = nullptr)
+        : cache<T, KeyT>(storage, next), cap_(capacity) {}
     ~lfu_cache() override = default;
     lfu_cache(const lfu_cache&) = delete;
     lfu_cache& operator=(const lfu_cache&) = delete;

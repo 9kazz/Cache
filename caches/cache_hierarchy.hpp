@@ -43,15 +43,15 @@ template <typename T, typename KeyT>
 std::unique_ptr<cache<T, KeyT>> make_cache(const std::string& name, size_t size,
                                            cache<T, KeyT>* next, slow_get_page_t<T, KeyT> storage) {
     if (name == "lru")
-        return std::make_unique<lru_cache<T, KeyT>>(size, next, storage);
+        return std::make_unique<lru_cache<T, KeyT>>(size, storage, next);
     if (name == "lfu")
-        return std::make_unique<lfu_cache<T, KeyT>>(size, next, storage);
+        return std::make_unique<lfu_cache<T, KeyT>>(size, storage, next);
     if (name == "arc")
-        return std::make_unique<arc_cache<T, KeyT>>(size, next, storage);
+        return std::make_unique<arc_cache<T, KeyT>>(size, storage, next);
     if (name == "2q")
-        return std::make_unique<qq_cache<T, KeyT>>(size, next, storage);
+        return std::make_unique<qq_cache<T, KeyT>>(size, storage, next);
     if (name == "lirs")
-        return std::make_unique<lirs_cache<T, KeyT>>(size, next, storage);
+        return std::make_unique<lirs_cache<T, KeyT>>(size, storage, next);
     throw std::invalid_argument("unknown strategy: " + name);
 }
 

@@ -72,8 +72,8 @@ private:
     void refresh(list_iter_t eltit);
     void rm_elem();                                                                                
 public:
-    lru_cache(size_t capacity, cache<T, KeyT>* next, slow_get_page_t<T, KeyT> storage)
-        : cache<T, KeyT>(next, storage), cap_(capacity) {}
+    lru_cache(size_t capacity, slow_get_page_t<T, KeyT> storage, cache<T, KeyT>* next = nullptr)
+        : cache<T, KeyT>(storage, next), cap_(capacity) {}
     ~lru_cache() override = default;
     lru_cache(const lru_cache&) = delete;
     lru_cache& operator=(const lru_cache&) = delete;
