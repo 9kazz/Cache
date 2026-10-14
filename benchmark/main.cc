@@ -13,7 +13,9 @@ int main(int argc, char* argv[]) {
 
     // set environment according to json's
     environment<std::string, int> env;
-    env.setup(argc, argv);
+    if (!env.setup(argc, argv)) {
+        return 1;
+    }
 
     static data_base<std::string, int> all_pages(std::move(env.pages()));
     workload<int> access_seq(std::move(env.sequence()));
@@ -26,7 +28,7 @@ int main(int argc, char* argv[]) {
 
     cache_hierarchy<std::string, int> cache(levels, slow_get_page);
     access_seq.run(cache);
-    print_statistics(cache);
+    print_statistics(cache, levels, env.metadata());
 
     return 0;
 }

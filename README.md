@@ -39,6 +39,10 @@ for f in data/*.json; do echo "$f"; ./bench.out -c benchmark/config.json -d "$f"
 
 Расширение `.out` уже есть в `.gitignore`.
 
+Аргументы командной строки для запуска бенчмарка:
+-d, --data:   путь к .json файлу с данными для тестирования
+-c, --config: путь к  .json файл конфигурации архитектуры кеша
+
 ## Создание кэшей
 
 У всех стратегий конструктор `(capacity, storage, next = nullptr)`: последний

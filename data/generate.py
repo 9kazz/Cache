@@ -9,8 +9,8 @@ Every dataset is a JSON file in the format read by benchmark/environment.hpp:
       "workload": [<int>, ...]
     }
 
-Only "pages" and "workload" are read by the benchmark; the other fields
-document what the workload models and which strategy it is expected to favour.
+The benchmark reads "pages" and "workload" and prints the optional metadata
+("name", "description", "params", "stats") in the statistics header.
 
 All generators use fixed seeds, so running this script again reproduces the
 same files byte for byte:

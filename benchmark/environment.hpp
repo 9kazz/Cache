@@ -6,12 +6,12 @@
 #include <string>
 #include <type_traits>
 #include <unordered_map>
-#include <string>
 #include <utility>
 #include <vector>
 #include <iostream>
 #include <getopt.h>
 #include "third_party/nlohmann/json.hpp"
+#include "dataset_metadata.hpp"
 
 namespace benchmark {
 
@@ -32,6 +32,22 @@ private:
     cache_levels hierarchy_;
     std::unordered_map<KeyT, T> all_pages_;
     std::vector<KeyT> access_seq_;
+    dataset_metadata metadata_;
+
+    static KeyT read_key(const nlohmann::json& key) {
+        if constexpr (std::is_integral_v<KeyT> && !std::is_same_v<KeyT, bool>) {
+            if (!key.is_number_integer()) {
+                throw std::invalid_argument("environment::get_data: expected an integer key");
+            }
+            const bool fits = key.is_number_unsigned()
+                ? std::in_range<KeyT>(key.get<nlohmann::json::number_unsigned_t>())
+                : std::in_range<KeyT>(key.get<nlohmann::json::number_integer_t>());
+            if (!fits) {
+                throw std::out_of_range("environment::get_data: key out of range");
+            }
+        }
+        return key.get<KeyT>();
+    }
 
 public:
     explicit environment()  = default;
@@ -56,6 +72,7 @@ public:
     const std::unordered_map<KeyT, T>&  pages() const { return all_pages_; }
     std::vector<KeyT>&               sequence()       { return access_seq_; }
     const std::vector<KeyT>&         sequence() const { return access_seq_; }
+    const dataset_metadata&         metadata() const { return metadata_; }
 };
 
 template <typename T, typename KeyT>
@@ -116,14 +133,29 @@ void environment<T, KeyT>::get_data(const std::string file_name) {
         throw std::invalid_argument("environment::get_data: fail to open file");
     }
 
-    // parse pages
     const auto document = nlohmann::json::parse(file);
-    if (!document.is_object() || !document.contains("pages") || !document.at("pages").is_array()) {
+    if (!document.is_object()) {
+        throw std::invalid_argument("environment::get_data: expected a JSON object");
+    }
+
+    // parse matadata
+    dataset_metadata temp_metadata;
+    temp_metadata.name = document.value("name", std::string{});
+    temp_metadata.description = document.value("description", std::string{});
+    temp_metadata.params = document.value("params", nlohmann::json::object());
+    temp_metadata.stats = document.value("stats", nlohmann::json::object());
+    if (!temp_metadata.params.is_object() || !temp_metadata.stats.is_object()) {
+        throw std::invalid_argument("environment::get_data: params and stats must be objects");
+    }
+
+    // parse pages
+    if (!document.contains("pages") || !document.at("pages").is_array()) {
         throw std::invalid_argument("environment::get_data: expected a pages array");
     }
 
     const auto& pages = document.at("pages");
-    std::unordered_map<KeyT, T> temp_pages; // fill temp_pages to save original data clear in failure case
+    // keep the original data and metadata on failure
+    std::unordered_map<KeyT, T> temp_pages;
     temp_pages.reserve(pages.size());
 
     for (const auto& page : pages) {
@@ -131,24 +163,8 @@ void environment<T, KeyT>::get_data(const std::string file_name) {
             throw std::invalid_argument("environment::get_data: page requires key and content");
         }
 
-        const auto& key     = page.at("key");
-        const auto& content = page.at("content");
-
-        // compile-time check for integer keys only
-        if constexpr (std::is_integral_v<KeyT> && !std::is_same_v<KeyT, bool>) {
-            if (!key.is_number_integer()) {
-                throw std::invalid_argument("environment::get_data: expected an integer key");
-            }
-            const bool fits = key.is_number_unsigned()
-                ? std::in_range<KeyT>(key.get<nlohmann::json::number_unsigned_t>())
-                : std::in_range<KeyT>(key.get<nlohmann::json::number_integer_t>());
-            if (!fits) {
-                throw std::out_of_range("environment::get_data: key out of range");
-            }
-        }
-
-        auto real_key     = key.get<KeyT>();
-        auto real_content = content.get<T>();
+        auto real_key     = read_key(page.at("key"));
+        auto real_content = page.at("content").get<T>();
 
         bool page_is_new = temp_pages.emplace(std::move(real_key), std::move(real_content)).second;
         if (!page_is_new) {
@@ -157,33 +173,20 @@ void environment<T, KeyT>::get_data(const std::string file_name) {
     }
 
     // parse workload
-    if (!document.is_object() || !document.contains("workload") || !document.at("workload").is_array()) {
+    if (!document.contains("workload") || !document.at("workload").is_array()) {
         throw std::invalid_argument("environment::get_data: expected a keys array");
     }
 
     const auto& keys = document.at("workload");
-    std::vector<KeyT> temp_seq; // fill temp_seq to save original data clear in failure case
+    std::vector<KeyT> temp_seq;
     temp_seq.reserve(keys.size());
 
     for (const auto& key : keys) {
-        // compile-time check for integer keys only
-        if constexpr (std::is_integral_v<KeyT> && !std::is_same_v<KeyT, bool>) {
-            if (!key.is_number_integer()) {
-                throw std::invalid_argument("environment::get_data: expected an integer key");
-            }
-            const bool fits = key.is_number_unsigned()
-                ? std::in_range<KeyT>(key.get<nlohmann::json::number_unsigned_t>())
-                : std::in_range<KeyT>(key.get<nlohmann::json::number_integer_t>());
-            if (!fits) {
-                throw std::out_of_range("environment::get_data: key out of range");
-            }
-        }
-
-        auto real_key = key.get<KeyT>();
-        temp_seq.push_back(std::move(real_key));
+        temp_seq.push_back(read_key(key));
     }
     all_pages_.swap(temp_pages);
     access_seq_.swap(temp_seq);
+    std::swap(metadata_, temp_metadata);
 }
 
 template <typename T, typename KeyT>
