@@ -49,7 +49,6 @@ public:
     
     void   append_level(std::string type, size_t size);
     size_t cnt_levels()  const { return hierarchy_.size(); }
-    void   print_cache() const;
 
     cache_levels&                   hierarchy()       { return hierarchy_; }
     const cache_levels&             hierarchy() const { return hierarchy_; }
@@ -96,16 +95,6 @@ void environment<T, KeyT>::append_level(std::string type, size_t size) {
         throw std::invalid_argument("environment::append_level: cache size must be positive");
     }
     hierarchy_.push_back(cache_level{type, size});
-}
-
-template <typename T, typename KeyT>
-void environment<T, KeyT>::print_cache() const {
-    std::cout << "Cache hierarchy, levels: " << cnt_levels() << '\n';
-    for (size_t i = 0; i < hierarchy_.size(); ++i) {
-        const auto& level = hierarchy_[i];
-        std::cout << "L" << i + 1 << ": " << level.first
-                  << ", " << level.second << " pages\n";
-    }
 }
 
 template <typename T, typename KeyT>

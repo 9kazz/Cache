@@ -2,8 +2,6 @@
 
 #include <cstddef>
 #include <utility>
-#include <iostream>
-#include <iomanip>
 #include <stdexcept>
 
 namespace caches {
@@ -38,7 +36,6 @@ public:
 
     size_t hits()      const {return n_hits_;}
     size_t misses()    const {return n_misses_;}
-    void   stat()      const;
     bool   is_full()   const {return size() == capacity();}    
 
     virtual std::pair<T, bool> lookup_update(const KeyT& key) = 0;
@@ -51,27 +48,6 @@ cache<T, KeyT>::cache(slow_get_page_t<T, KeyT> storage, cache* next)
 {
     if ((next_ == nullptr) == (storage_get_ == nullptr))
         throw std::invalid_argument("cache: pass exactly one of next level / slow storage");
-}
-
-template <typename T, typename KeyT>
-void cache<T, KeyT>::stat() const
-{
-    const std::size_t hits   = this->hits();
-    const std::size_t misses = this->misses();
-    const std::size_t total  = hits + misses;
-
-    const double hit_rate = total != 0
-        ? 100.0 * hits / total
-        : 0.0;
-
-    std::cout
-        << "Cache statistics\n"
-        << "----------------\n"
-        << "Requests : " << total  << '\n'
-        << "Hits     : " << hits   << '\n'
-        << "Misses   : " << misses << '\n'
-        << "Hit rate : " << std::fixed << std::setprecision(2)
-        << hit_rate << "%\n";
 }
 
 }

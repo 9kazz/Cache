@@ -3,6 +3,7 @@
 #include "environment.hpp"
 #include "data_base.hpp"
 #include "workload.hpp"
+#include "statistics.hpp"
 #include "../caches/cache_hierarchy.hpp"
 
 int main(int argc, char* argv[]) {
@@ -13,7 +14,6 @@ int main(int argc, char* argv[]) {
     // set environment according to json's
     environment<std::string, int> env;
     env.setup(argc, argv);
-    env.print_cache();
 
     static data_base<std::string, int> all_pages(std::move(env.pages()));
     workload<int> access_seq(std::move(env.sequence()));
@@ -26,7 +26,7 @@ int main(int argc, char* argv[]) {
 
     cache_hierarchy<std::string, int> cache(levels, slow_get_page);
     access_seq.run(cache);
-    // l1.stat();
+    print_statistics(cache);
 
     return 0;
 }
