@@ -1,6 +1,7 @@
 #pragma once
 
 #include <fstream>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -17,43 +18,18 @@ namespace benchmark {
 template <typename T, typename KeyT>
 class environment {
 public:
-    enum CACHE_TYPE {
-        LRU  = 1,
-        LFU  = 2,
-        QQ   = 3,
-        ARC  = 4,
-        LIRS = 5
-    };
-    struct cache_level {
-        CACHE_TYPE type;
-        size_t size;
-    };
+    using cache_level  = std::pair<std::string, size_t>;
+    using cache_levels = std::vector<cache_level>;
 
 private:
-    static const char* cache_name(CACHE_TYPE type) {
-        switch (type) {
-        case LRU:  return "LRU";
-        case LFU:  return "LFU";
-        case QQ:   return "QQ";
-        case ARC:  return "ARC";
-        case LIRS: return "LIRS";
-        default:   throw std::invalid_argument("environment: unknown cache type");
-        }
-    }
-
-    // need for convertion cache names from JSON to CACHE_TYPE
-    inline static const std::unordered_map<std::string, CACHE_TYPE> cache_types {
-        {"LRU",  LRU},
-        {"LFU",  LFU},
-        {"QQ",   QQ},
-        {"ARC",  ARC},
-        {"LIRS", LIRS}
+    inline static const std::set<std::string> cache_types {
+        "lru", "lfu", "2q", "arc", "lirs"
     };
 
     std::string data_;
     std::string config_; 
 
-    std::vector<cache_level> hierarchy_;
+    cache_levels hierarchy_;
     std::unordered_map<KeyT, T> all_pages_;
     std::vector<KeyT> access_seq_;
 
@@ -71,12 +47,12 @@ public:
     void get_config ();
     void get_opt    (int argc, char* argv[]);
     
-    void   append_level(CACHE_TYPE type, size_t size);
+    void   append_level(std::string type, size_t size);
     size_t cnt_levels()  const { return hierarchy_.size(); }
     void   print_cache() const;
 
-    std::vector<cache_level>&       hierarchy()       { return hierarchy_; }
-    const std::vector<cache_level>& hierarchy() const { return hierarchy_; }
+    cache_levels&                   hierarchy()       { return hierarchy_; }
+    const cache_levels&             hierarchy() const { return hierarchy_; }
     std::unordered_map<KeyT, T>&        pages()       { return all_pages_; }
     const std::unordered_map<KeyT, T>&  pages() const { return all_pages_; }
     std::vector<KeyT>&               sequence()       { return access_seq_; }
@@ -111,8 +87,11 @@ bool environment<T, KeyT>::setup(const char* data_file, const char* config_file)
 }
 
 template <typename T, typename KeyT>
-void environment<T, KeyT>::append_level(CACHE_TYPE type, size_t size) {
-    cache_name(type); // validate the type before modifying the hierarchy
+void environment<T, KeyT>::append_level(std::string type, size_t size) {
+    // validate the type before modifying the hierarchy
+    if (!cache_types.contains(type)) {
+        throw std::invalid_argument("environment: unknown cache type");
+    }
     if (size == 0) {
         throw std::invalid_argument("environment::append_level: cache size must be positive");
     }
@@ -124,8 +103,8 @@ void environment<T, KeyT>::print_cache() const {
     std::cout << "Cache hierarchy, levels: " << cnt_levels() << '\n';
     for (size_t i = 0; i < hierarchy_.size(); ++i) {
         const auto& level = hierarchy_[i];
-        std::cout << "L" << i + 1 << ": " << cache_name(level.type)
-                  << ", " << level.size << " pages\n";
+        std::cout << "L" << i + 1 << ": " << level.first
+                  << ", " << level.second << " pages\n";
     }
 }
 
@@ -280,8 +259,7 @@ void environment<T, KeyT>::get_config(const std::string file_name) {
             throw std::invalid_argument("environment::get_config: cache type must be a string");
         }
         const auto name = type.get<std::string>();
-        const auto cache_type = cache_types.find(name);
-        if (cache_type == cache_types.end()) {
+        if (!cache_types.contains(name)) {
             throw std::invalid_argument("environment::get_config: unknown cache type '" + name + "'");
         }
         
@@ -296,7 +274,7 @@ void environment<T, KeyT>::get_config(const std::string file_name) {
         if (!size_fits) {
             throw std::out_of_range("environment::get_config: cache size out of range");
         }
-        temp_hierarchy.push_back({cache_type->second, size.get<size_t>()});
+        temp_hierarchy.push_back(cache_level{name, size.get<size_t>()});
     }
 
     hierarchy_.swap(temp_hierarchy);
