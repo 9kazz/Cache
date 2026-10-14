@@ -1,0 +1,16 @@
+{
+  "name": "01_smoke",
+  "description": "Classic 12-request sequence (Belady's anomaly example). Sanity check: small enough to trace every policy by hand; with capacity 3 the optimum is 5 hits.",
+  "params": {},
+  "stats": {"requests": 12, "distinct_keys": 5, "one_hit_keys": 0, "max_key_frequency": 3},
+  "pages": [
+    {"key": 1, "content": "page-1:8tKxCdS4UHw2fO5Xwh1eDdbwc9sHnxw1qHTd5GcFE06u9858"},
+    {"key": 2, "content": "page-2:j8cmV4cy7uEiVas"},
+    {"key": 3, "content": "page-3:eMpAkmn09Hk8eDAVsWtZfIWDSyDBGyDzkXJhWidwlV"},
+    {"key": 4, "content": "page-4:0pTQwNmtI"},
+    {"key": 5, "content": "page-5:ZtPgky1igFbAEFum5wx1HWi7pJD7sgWmPBxapKC8hHTLyPJp"}
+  ],
+  "workload": [
+    1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5
+  ]
+}

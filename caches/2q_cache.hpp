@@ -36,10 +36,8 @@ private:
         T    content;
         KeyT key;
     };
-    using a1in_t  = typename std::list<KeyT>::iterator;
-    using a1out_t = typename std::list<KeyT>::iterator;
-    using am_t    = typename std::list<KeyT>::iterator;
-    using cache_iter_t = typename std::vector<page_t>::iterator;
+    // A1in, A1out and Am are all std::list<KeyT>, so one iterator type fits each
+    using queue_iter_t = typename std::list<KeyT>::iterator;
 
     enum state_t {
         A1IN  = 1, // first access to the page
@@ -50,7 +48,7 @@ private:
         KeyT    key;
         state_t state;
         size_t  idx;  // idx in cache: valid only when state != A1OUT
-        a1in_t  iter; // iter in corresponding queque
+        queue_iter_t iter; // iter in the queue given by state
     };
     // members
     size_t a1in_cap_; // Kin: eviction threshold, not a hard queue limit

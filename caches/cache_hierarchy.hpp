@@ -3,8 +3,9 @@
 // TODO-----------------------------------------------------------------
 // [small]  level(i) uses caches_.at(i), which throws std::out_of_range.
 //          Compare with operator[] - when is the check worth it?
-// [small]  make_cache() is the only place that knows all strategy names.
-//          The JSON config from the project plan should go through it too.
+// [small]  make_cache() creates every strategy, the benchmark config goes
+//          through it too; environment.hpp still keeps its own list of names
+//          only to validate the config.
 // [medium] Levels are created bottom-up because a level needs the level
 //          below it in its constructor. Why does this make a cycle
 //          (L1 -> L2 -> L1) impossible to build?
@@ -22,6 +23,7 @@
 //          storage reads == misses of the last level.
 // --------------------------------------------------------------------------
 
+#include <cctype>
 #include <cstddef>
 #include <memory>
 #include <stdexcept>
@@ -38,19 +40,26 @@
 
 namespace caches {
 
-// create a strategy by its name; next / storage as in the cache constructor
+// create a strategy by its name; storage / next as in the cache constructor.
+// Names are case-insensitive, so both the CLI ("lru", "2q") and the benchmark
+// config ("LRU", "QQ") go through here; "2q" and "qq" are the same strategy.
 template <typename T, typename KeyT>
 std::unique_ptr<cache<T, KeyT>> make_cache(const std::string& name, size_t size,
-                                           cache<T, KeyT>* next, slow_get_page_t<T, KeyT> storage) {
-    if (name == "lru")
+                                           slow_get_page_t<T, KeyT> storage,
+                                           cache<T, KeyT>* next = nullptr) {
+    std::string id = name;
+    for (char& c : id)
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+
+    if (id == "lru")
         return std::make_unique<lru_cache<T, KeyT>>(size, storage, next);
-    if (name == "lfu")
+    if (id == "lfu")
         return std::make_unique<lfu_cache<T, KeyT>>(size, storage, next);
-    if (name == "arc")
+    if (id == "arc")
         return std::make_unique<arc_cache<T, KeyT>>(size, storage, next);
-    if (name == "2q")
+    if (id == "2q" || id == "qq")
         return std::make_unique<qq_cache<T, KeyT>>(size, storage, next);
-    if (name == "lirs")
+    if (id == "lirs")
         return std::make_unique<lirs_cache<T, KeyT>>(size, storage, next);
     throw std::invalid_argument("unknown strategy: " + name);
 }
@@ -97,10 +106,10 @@ cache_hierarchy<T, KeyT>::cache_hierarchy(const std::vector<std::pair<std::strin
     // every other level reads from the level right below it
     const size_t n = levels.size();
     caches_.resize(n);
-    caches_[n - 1] = make_cache<T, KeyT>(levels[n - 1].first, levels[n - 1].second, nullptr, storage);
+    caches_[n - 1] = make_cache<T, KeyT>(levels[n - 1].first, levels[n - 1].second, storage);
     for (size_t i = n - 1; i > 0; --i)
         caches_[i - 1] = make_cache<T, KeyT>(levels[i - 1].first, levels[i - 1].second,
-                                             caches_[i].get(), nullptr);
+                                             nullptr, caches_[i].get());
 }
 
 }

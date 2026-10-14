@@ -8,9 +8,6 @@
 //          (operator[]): same question as in LRU/LFU - emplace/insert_or_assign?
 // [small]  make_room(), branch "T1 took the whole cache": why is the evicted
 //          page dropped WITHOUT a ghost here? (hint: |T1| + |B1| <= cap_)
-// [medium] Exception safety: unlike LRU/LFU, slow_get_page() is called AFTER
-//          replace()/make_room(). If it throws, a page is already evicted and
-//          the ghost is erased. Move the load to the top of cases II-IV.
 // [medium] Ghost case: `const ghost_elem_t& gelem = ghost->second` is taken
 //          before replace(). Revert to `ghost->second` after replace() and
 //          build with -D_GLIBCXX_DEBUG -fsanitize=address: does it catch it?
@@ -146,6 +143,14 @@ std::pair<T, bool> arc_cache<T, KeyT>::lookup_update(const KeyT& key) {
     // cases II and III: no page, but we remember its key (B1 or B2)
     auto ghost = ghost_hash_.find(key);
     if (ghost != ghost_hash_.end()) {
+        // load first: if the slow storage throws, nothing is evicted yet and
+        // the cache stays untouched (slow_get_page() never touches this level,
+        // so `ghost` is still valid after it)
+        page_t page {
+            .content = this->slow_get_page(key).first,
+            .key     = key
+        };
+
         // replace() may insert into ghost_hash_ and rehash it: that invalidates
         // the iterator `ghost`, but not a reference to the element
         const ghost_elem_t& gelem = ghost->second;
@@ -155,23 +160,18 @@ std::pair<T, bool> arc_cache<T, KeyT>::lookup_update(const KeyT& key) {
         replace(in_b2);
         erase_ghost(key, gelem);
 
-        page_t page {
-            .content = this->slow_get_page(key).first,
-            .key     = key
-        };
         store(t2_, true, page);           // requested >= 2 times => straight to T2
 
         cache<T, KeyT>::n_misses_++;
         return {page.content, false};
     }
 
-    // case IV: a brand new key
-    make_room();
-
+    // case IV: a brand new key; load first, then make room (exception safety)
     page_t page {
         .content = this->slow_get_page(key).first,
         .key     = key
     };
+    make_room();
     store(t1_, false, page);
 
     cache<T, KeyT>::n_misses_++;

@@ -43,7 +43,7 @@ std::pair<std::string, std::size_t> parse_level(const std::string& arg) {
 
 // one strategy alone: it reads straight from the slow storage
 std::size_t run_single(const std::string& name, std::size_t m, const std::vector<PageId>& keys) {
-    std::unique_ptr<cache_t> cache = caches::make_cache<Page, PageId>(name, m, nullptr, slow_get_page);
+    std::unique_ptr<cache_t> cache = caches::make_cache<Page, PageId>(name, m, slow_get_page);
     for (PageId key : keys)
         cache->lookup_update(key);
     return cache->hits();
@@ -88,8 +88,9 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // no reserve(n): a huge n from the input would throw length_error before
+    // any key is read; push_back fails gracefully at the end of the input instead
     std::vector<PageId> keys;
-    keys.reserve(static_cast<std::size_t>(n));
     for (long long i = 0; i < n; ++i) {
         PageId key;
         if (!read_integer(key)) {
