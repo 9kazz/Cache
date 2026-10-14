@@ -37,12 +37,11 @@ private:
     };
     using s_iter_t     = typename std::list<KeyT>::iterator;
     using q_iter_t     = typename std::list<KeyT>::iterator;
-    using cache_iter_t = typename std::vector<page_t>::iterator;
 
     enum state_t {
         LIR   = 1, // low inter-reference recency
-        HIR_R = 2, // hight, resident
-        HIR_N = 3  // hight, non-resident
+        HIR_R = 2, // high, resident
+        HIR_N = 3  // high, non-resident
     };
     struct meta_data_t {
         KeyT    key;
@@ -241,7 +240,7 @@ void lirs_cache<T, KeyT>::evict_from_s_if_need() {
     auto s_it = std::prev(s_.end());
 
     while (true) {
-        auto& meta = hash_.at(*s_it);
+        auto& meta = hash_.find(*s_it)->second;
         if (meta.state != LIR) {
             break;
         }
