@@ -28,7 +28,8 @@ int main(int argc, char* argv[]) {
 
     cache_hierarchy<std::string, int> cache(levels, slow_get_page);
     access_seq.run(cache);
-    print_statistics(cache, levels, env.metadata());
+    auto opt_hits = access_seq.optimal_hits(cache.total_size());
+    print_statistics(cache, opt_hits, env.metadata());
 
     return 0;
 }

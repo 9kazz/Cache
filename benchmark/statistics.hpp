@@ -1,14 +1,11 @@
 #pragma once
 
-#include <cctype>
 #include <cstddef>
 #include <iomanip>
 #include <iostream>
+#include <optional>
 #include <sstream>
-#include <stdexcept>
 #include <string>
-#include <utility>
-#include <vector>
 
 #include "../caches/cache_hierarchy.hpp"
 #include "dataset_metadata.hpp"
@@ -17,12 +14,10 @@ namespace benchmark {
 
 template <typename T, typename KeyT>
 void print_statistics(const caches::cache_hierarchy<T, KeyT>& hierarchy,
-                      const std::vector<std::pair<std::string, size_t>>& levels,
+                      std::optional<size_t> optimal_hits = std::nullopt,
                       const dataset_metadata& metadata = {},
-                      std::ostream& output = std::cout) {
-    if (levels.size() != hierarchy.levels()) {
-        throw std::invalid_argument("print_statistics: level count does not match hierarchy");
-    }
+                      std::ostream& output = std::cout) 
+{
     const auto& first = hierarchy.level(0);
     const size_t requests = first.hits() + first.misses();
     const size_t misses = hierarchy.level(hierarchy.levels() - 1).misses();
@@ -33,7 +28,7 @@ void print_statistics(const caches::cache_hierarchy<T, KeyT>& hierarchy,
     std::ostringstream report;
     report << std::fixed << std::setprecision(2)
            << "========================================================================\n"
-           << "Benchmark data information\n";
+           << "BENCHMARK DATA INFORMATION\n\n";
     if (!metadata.name.empty()) {
         report << "Workload: " << metadata.name << '\n';
     }
@@ -46,15 +41,15 @@ void print_statistics(const caches::cache_hierarchy<T, KeyT>& hierarchy,
     if (!metadata.stats.empty()) {
         report << "Workload stats: " << metadata.stats.dump() << '\n';
     }
-    if (!metadata.name.empty() || !metadata.description.empty() ||
-        !metadata.params.empty() || !metadata.stats.empty()) {
-        report << '\n';
-    }
     report << "------------------------------------------------------------------------\n"
-           << "Cache statistics\n"
-           << "Requests: " << requests << '\n'
-           << "Hits:     " << hits << " (" << hit_rate << "%)\n"
-           << "Misses:   " << misses << " (" << miss_rate << "%, storage reads)\n\n"
+           << "CACHE STATISTIC\n\n"
+           << "Requests: \t" << requests << '\n'
+           << "Hits:     \t" << hits << " (" << hit_rate << "%)\n";
+    if (optimal_hits) {
+        const auto optimal_rate = requests != 0 ? 100.0 * (*optimal_hits) / requests : 0.0;
+        report << "Optimal hits: \t" << *optimal_hits << " (" << optimal_rate << "%)\n";
+    }
+    report << "Misses:   \t" << misses << " (" << miss_rate << "%, storage reads)\n\n"
            << std::left << std::setw(6) << "Level"
            << std::setw(6) << "Type" << std::right
            << std::setw(10) << "Capacity"
@@ -63,18 +58,15 @@ void print_statistics(const caches::cache_hierarchy<T, KeyT>& hierarchy,
            << std::setw(12) << "Misses"
            << std::setw(12) << "Hit rate" << '\n';
 
+    const auto arch = hierarchy.architecture();
     for (size_t i = 0; i < hierarchy.levels(); ++i) {
-        std::string algorithm = levels[i].first;
-        for (char& c : algorithm) {
-            c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-        }
         const auto& level = hierarchy.level(i);
         const size_t level_requests = level.hits() + level.misses();
         const double level_hit_rate = level_requests != 0
             ? 100.0 * level.hits() / level_requests : 0.0;
 
         report << std::left << std::setw(6) << "L" + std::to_string(i + 1)
-               << std::setw(6) << algorithm << std::right
+               << std::setw(6) << arch[i].first << std::right
                << std::setw(10) << level.capacity()
                << std::setw(12) << level_requests
                << std::setw(12) << level.hits()

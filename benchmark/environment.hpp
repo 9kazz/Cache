@@ -72,7 +72,7 @@ public:
     const std::unordered_map<KeyT, T>&  pages() const { return all_pages_; }
     std::vector<KeyT>&               sequence()       { return access_seq_; }
     const std::vector<KeyT>&         sequence() const { return access_seq_; }
-    const dataset_metadata&         metadata() const { return metadata_; }
+    const dataset_metadata&         metadata()  const { return metadata_; }
 };
 
 template <typename T, typename KeyT>
