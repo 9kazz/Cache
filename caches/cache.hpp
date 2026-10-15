@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <utility>
 #include <stdexcept>
+#include <string>
 
 namespace caches {
 
@@ -31,8 +32,9 @@ public:
     cache(slow_get_page_t<T, KeyT> storage, cache* next = nullptr);
     virtual ~cache() = default;
 
-    virtual size_t capacity() const = 0; 
-    virtual size_t size()     const = 0; 
+    virtual size_t capacity()  const = 0; 
+    virtual size_t size()      const = 0; 
+    virtual std::string type() const = 0;
 
     size_t hits()      const {return n_hits_;}
     size_t misses()    const {return n_misses_;}

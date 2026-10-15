@@ -117,8 +117,9 @@ public:
     arc_cache(const arc_cache&) = delete;
     arc_cache& operator=(const arc_cache&) = delete;
 
-    size_t capacity() const override {return cap_;}
-    size_t size()     const override {return hash_.size();}
+    size_t capacity()  const override {return cap_;}
+    size_t size()      const override {return hash_.size();}
+    std::string type() const override {return "arc";}
 
     std::pair<T, bool> lookup_update(const KeyT& key) override;
 };

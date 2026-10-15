@@ -77,8 +77,9 @@ public:
     lirs_cache(const lirs_cache&) = delete;
     lirs_cache& operator=(const lirs_cache&) = delete;
 
-    size_t capacity() const override {return cap_;}
-    size_t size()     const override {return cache_.size();}
+    size_t capacity()  const override {return cap_;}
+    size_t size()      const override {return cache_.size();}
+    std::string type() const override {return "lirs";}
 
     std::pair<T, bool> lookup_update(const KeyT& key) override;
 };

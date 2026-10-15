@@ -98,8 +98,9 @@ public:
     lfu_cache(const lfu_cache&) = delete;
     lfu_cache& operator=(const lfu_cache&) = delete;
 
-    size_t capacity() const override {return cap_;}
-    size_t size()     const override {return hash_.size();}
+    size_t capacity()  const override {return cap_;}
+    size_t size()      const override {return hash_.size();}
+    std::string type() const override {return "lfu";}
 
     std::pair<T, bool> lookup_update(const KeyT& key) override;
 };

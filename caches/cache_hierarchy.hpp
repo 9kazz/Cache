@@ -91,6 +91,10 @@ public:
     size_t         levels()        const {return caches_.size();}
     const cache_t& level(size_t i) const {return *caches_.at(i);}
 
+    // Sum of level capacities, independent of the current number of pages.
+    size_t total_size() const;
+    std::vector<std::pair<std::string, size_t>> architecture() const;
+
     // the request enters L1; the bool is "hit in L1"
     std::pair<T, bool> lookup_update(const KeyT& key) {return caches_.front()->lookup_update(key);}
 };
@@ -110,6 +114,25 @@ cache_hierarchy<T, KeyT>::cache_hierarchy(const std::vector<std::pair<std::strin
     for (size_t i = n - 1; i > 0; --i)
         caches_[i - 1] = make_cache<T, KeyT>(levels[i - 1].first, levels[i - 1].second,
                                              nullptr, caches_[i].get());
+}
+
+template <typename T, typename KeyT>
+size_t cache_hierarchy<T, KeyT>::total_size() const {
+    size_t total = 0;
+    for (const auto& cache : caches_) {
+        total += cache->capacity();
+    }
+    return total;
+}
+
+template <typename T, typename KeyT>
+std::vector<std::pair<std::string, size_t>> cache_hierarchy<T, KeyT>::architecture() const {
+    std::vector<std::pair<std::string, size_t>> result;
+    result.reserve(caches_.size());
+    for (const auto& cache : caches_) {
+        result.emplace_back(cache->type(), cache->capacity());
+    }
+    return result;
 }
 
 }

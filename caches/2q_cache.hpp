@@ -78,8 +78,9 @@ public:
     qq_cache(const qq_cache&) = delete;
     qq_cache& operator=(const qq_cache&) = delete;
 
-    size_t capacity() const override {return a1in_cap_ + am_cap_;}
-    size_t size()     const override {return cache_.size();}
+    size_t capacity()  const override {return a1in_cap_ + am_cap_;}
+    size_t size()      const override {return cache_.size();}
+    std::string type() const override {return "2q";}
 
     std::pair<T, bool> lookup_update(const KeyT& key) override;
 };

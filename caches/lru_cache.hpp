@@ -78,8 +78,9 @@ public:
     lru_cache(const lru_cache&) = delete;
     lru_cache& operator=(const lru_cache&) = delete;
     
-    size_t capacity() const override {return cap_;}
-    size_t size()     const override {return cache_.size();}
+    size_t capacity()  const override {return cap_;}
+    size_t size()      const override {return cache_.size();}
+    std::string type() const override {return "lru";}
     
     std::pair<T, bool> lookup_update(const KeyT& key) override;
 };
