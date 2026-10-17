@@ -28,6 +28,7 @@ private:
 
     std::string data_;
     std::string config_; 
+    std::string log_;
 
     cache_levels hierarchy_;
     std::unordered_map<KeyT, T> all_pages_;
@@ -72,7 +73,8 @@ public:
     const std::unordered_map<KeyT, T>&  pages() const { return all_pages_; }
     std::vector<KeyT>&               sequence()       { return access_seq_; }
     const std::vector<KeyT>&         sequence() const { return access_seq_; }
-    const dataset_metadata&         metadata()  const { return metadata_; }
+    const dataset_metadata&          metadata() const { return metadata_; }
+    const std::string&               log_file() const { return log_; }
 };
 
 template <typename T, typename KeyT>
@@ -281,14 +283,16 @@ void environment<T, KeyT>::get_opt(int argc, char* argv[]) {
     const struct option long_opt[] = {
         {"config", required_argument, 0, 'c'},
         {"data",   required_argument, 0, 'd'},
+        {"log",    required_argument, 0, 'l'},
         {0,        0,                 0,  0 }
     };
 
     std::string temp_config;
     std::string temp_data;
+    std::string temp_log;
 
     while (true) {
-        const int opt = getopt_long(argc, argv, "c:d:", long_opt, nullptr);
+        const int opt = getopt_long(argc, argv, "c:d:l:", long_opt, nullptr);
 
         if (opt == -1)
             break;
@@ -300,6 +304,10 @@ void environment<T, KeyT>::get_opt(int argc, char* argv[]) {
 
         case 'd':
             temp_data = optarg;
+            break;
+
+        case 'l':
+            temp_log = optarg;
             break;
 
         case '?':
@@ -316,6 +324,7 @@ void environment<T, KeyT>::get_opt(int argc, char* argv[]) {
 
     data_.swap(temp_data);
     config_.swap(temp_config);
+    log_.swap(temp_log);
 }
 
 }

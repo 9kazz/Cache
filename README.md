@@ -28,14 +28,20 @@ echo "0 12 1 2 3 4 1 2 5 1 2 3 4 5" | ./cache.out hier lru:2 arc:4 2q:8
 
 ```bash
 g++ -std=c++20 -Wall -Wextra -O2 benchmark/main.cc -o bench.out
-./bench.out -c benchmark/config.json -d data/04_zipf_1.0.json
+./bench.out -c "path to comfig file" -d "path to data file"
 ```
 
-Все датасеты подряд:
+Для сборки и запуска тестов можно использовать скрипт bench.py:
 
+Сборка:
 ```bash
-for f in data/*.json; do echo "$f"; ./bench.out -c benchmark/config.json -d "$f" | grep 'Hit rate'; done
+python3 bench.py build
 ```
+Запуск тестов
+```bash
+python3 bench.py run -c "path to config file" -l "path to log file" -d "path to benchmark data directory"
+```
+
 
 Расширение `.out` уже есть в `.gitignore`.
 
